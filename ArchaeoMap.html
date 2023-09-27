@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archaeological Sites Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
+    <style>
+      #map {position: absolute; top: 0; right: 0; bottom: 0; left: 0;}
+      .custom-user-icon {
+        border: 2px solid #0096FF; 
+        background-color: #0096FF; 
+        border-radius: 100%; 
+      }
+      .user-marker {
+        width: 10px;
+        height: 10px;
+        background-color: #0096FF; 
+        border-radius: 50%; 
+      }
+      body {
+        font-family: Georgia, serif;
+        margin: 0;
+        padding: 0;
+      }
+
+      #header {
+        background-color: #333;
+        color: #fff;
+        padding: 10px;
+        text-align: center;
+      }
+
+      #map-container {
+        position: relative;
+        height: calc(100vh - 120px); 
+      }
+
+      #map {
+        height: 75%;
+        width: 100%;
+      }
+
+      #footer {
+        background-color: #333;
+        color: #fff;
+        text-align: left;
+        padding: 20px;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+      }
+
+    </style>
+  </head>
+  <body>
+    <div id="header">
+      <h1>ArchaeoMap</h1>
+      <p>Remnants of bygone eras surround us. But where are they located? Are there any near me?</p>
+    </div>
+    <div id="map-container">
+      <div id="map"></div>
+    </div>
+    <div id="footer">
+      <p>Created by Daniel Maller <br>Contact: s91816@bht-berlin.de</p>
+    </div>
+    <script>
+
+      const map = L.map('map').setView([52.520008, 13.404954], 14); 
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+
+      function fetchArchaeologicalSites(map) {
+       const overpassQuery = `
+          [out:json];
+          (node["historic"="archaeological_site"];
+           way["historic"="archaeological_site"];
+           relation["historic"="archaeological_site"];);
+          out;
+        `;
+
+        fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`)
+          .then((response) => response.json())
+          .then((data) => {
+            const markers = L.markerClusterGroup();
+
+            data.elements.forEach((element) => {
+              const lat = element.lat || (element.center && element.center.lat);
+              const lon = element.lon || (element.center && element.center.lon);
+
+              if (lat && lon) {
+                const marker = L.marker([lat, lon]);
+
+                const popupContent = element.tags.name || 'Unbekannt';
+
+                marker.bindPopup(popupContent); 
+                markers.addLayer(marker);
+              }
+            });
+
+            map.addLayer(markers);
+          })
+          .catch((error) => {
+            console.error('Fehler beim Abrufen der Overpass-Daten:', error);
+          });
+      }
+
+      function activateUserLocation(map) {
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition((position) => {
+            const userLat = position.coords.latitude;
+            const userLon = position.coords.longitude;
+
+            const userIcon = L.divIcon({
+              className: 'custom-user-icon', 
+              html: '<div class="user-marker"></div>', 
+              iconSize: [15, 15], 
+            });
+
+            const userMarker = L.marker([userLat, userLon], { icon: userIcon }).addTo(map);
+            userMarker.bindPopup('location').openPopup();
+          }, (error) => {
+            console.error('Fehler bei der Standortabfrage:', error);
+          });
+        } else {
+          console.error('Geolokalisierung wird vom Browser nicht unterstützt.');
+        }
+      }
+
+      fetchArchaeologicalSites(map);
+
+      activateUserLocation(map);
+    </script>
+  </body>
+</html>
